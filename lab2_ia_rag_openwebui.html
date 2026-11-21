@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="es" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lab 2: Pipeline RAG Documental con Open WebUI y Ollama</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        display: ['Space Grotesk', 'sans-serif'],
+                        mono: ['Fira Code', 'monospace'],
+                    },
+                    colors: {
+                        brand: {
+                            400: '#38bdf8',
+                            500: '#0ea5e9',
+                            600: '#0284c7',
+                        },
+                        accent: {
+                            400: '#a78bfa',
+                            500: '#8b5cf6',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            background-color: #090d16;
+            color: #e2e8f0;
+        }
+        .glass-card {
+            background: rgba(15, 23, 42, 0.75);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(51, 65, 85, 0.6);
+        }
+        .code-block {
+            background-color: #06090f;
+            border: 1px solid #1e293b;
+        }
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #090d16;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #475569;
+        }
+        .step-checkbox:checked + div {
+            text-decoration: line-through;
+            color: #64748b;
+        }
+    </style>
+</head>
+<body class="antialiased min-h-screen flex flex-col">
+
+    <!-- Top Navigation & Progress Bar -->
+    <header class="sticky top-0 z-50 glass-card border-b border-slate-800">
+        <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div>
+                    <div class="flex items-center gap-2 text-xs font-mono uppercase tracking-wider text-brand-400">
+                        <span class="px-2 py-0.5 rounded bg-brand-500/10 border border-brand-500/30">Módulo LLMOps & RAG</span>
+                        <span>•</span>
+                        <span>Duración: 3 Horas</span>
+                    </div>
+                    <h1 class="text-xl sm:text-2xl font-display font-bold text-white mt-1">
+                        Lab 2: Pipeline RAG Documental con Open WebUI
+                    </h1>
+                </div>
+                <div class="flex items-center gap-4">
+                    <div class="text-right">
+                        <div class="text-xs text-slate-400 font-medium">Progreso del Laboratorio</div>
+                        <div id="progress-text" class="text-sm font-mono font-bold text-emerald-400">0% Completado</div>
+                    </div>
+                    <button onclick="resetProgress()" title="Reiniciar progreso" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition text-xs">
+                        Reiniciar
+                    </button>
+                </div>
+            </div>
+            <!-- Progress Bar -->
+            <div class="w-full bg-slate-800 h-1.5 rounded-full mt-3 overflow-hidden">
+                <div id="progress-bar" class="bg-gradient-to-r from-brand-500 to-emerald-400 h-full transition-all duration-300" style="width: 0%"></div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1 space-y-10">
+
+        <!-- Hero / Overview & Architecture -->
+        <section class="glass-card rounded-2xl p-6 sm:p-8 shadow-xl">
+            <div class="grid lg:grid-cols-12 gap-8 items-center">
+                <div class="lg:col-span-6 space-y-4">
+                    <h2 class="text-lg font-display font-semibold text-white flex items-center gap-2">
+                        <span class="w-2 h-6 bg-brand-500 rounded-full"></span>
+                        Objetivo de la Práctica
+                    </h2>
+                    <p class="text-slate-300 text-sm leading-relaxed">
+                        Desplegar una arquitectura completa de <strong>Generación Aumentada por Recuperación (RAG)</strong> 100% local y privada utilizando <strong>Ollama</strong> como motor de inferencia y <strong>Open WebUI</strong> como interfaz web de gestión documental. Evaluarás empíricamente el comportamiento de un modelo de lenguaje pequeño (SLM) <em>Antes vs. Después</em> de conectarlo a una base de conocimiento vectorial.
+                    </p>
+                    <div class="grid grid-cols-3 gap-3 pt-2">
+                        <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-3">
+                            <div class="text-xs text-slate-400">Inferencia</div>
+                            <div class="text-sm font-mono font-semibold text-brand-400 mt-0.5">Ollama Local</div>
+                        </div>
+                        <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-3">
+                            <div class="text-xs text-slate-400">Interfaz & RAG</div>
+                            <div class="text-sm font-mono font-semibold text-accent-400 mt-0.5">Open WebUI</div>
+                        </div>
+                        <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-3">
+                            <div class="text-xs text-slate-400">Embeddings</div>
+                            <div class="text-sm font-mono font-semibold text-emerald-400 mt-0.5">nomic-embed</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SVG Architecture Diagram -->
+                <div class="lg:col-span-6 bg-slate-950/90 border border-slate-800 rounded-xl p-5">
+                    <div class="text-xs font-mono text-slate-400 mb-3 text-center uppercase tracking-wider">Arquitectura del Stack Desplegado</div>
+                    <svg viewBox="0 0 600 230" class="w-full h-auto">
+                        <defs>
+                            <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                                <path d="M 0 1 L 10 5 L 0 9 z" fill="#38bdf8" />
+                            </marker>
+                            <marker id="arrow-green" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                                <path d="M 0 1 L 10 5 L 0 9 z" fill="#34d399" />
+                            </marker>
+                        </defs>
+
+                        <!-- Docs Box -->
+                        <rect x="20" y="20" width="150" height="55" rx="8" fill="#1e293b" stroke="#475569" stroke-width="1.5"/>
+                        <text x="95" y="44" fill="#f8fafc" font-size="12" font-family="Inter" font-weight="600" text-anchor="middle">Documento Interno</text>
+                        <text x="95" y="62" fill="#94a3b8" font-size="10" font-family="Fira Code" text-anchor="middle">politica_2027.txt</text>
+
+                        <!-- Vector DB Box -->
+                        <rect x="225" y="20" width="160" height="55" rx="8" fill="#1e1b4b" stroke="#8b5cf6" stroke-width="1.5"/>
+                        <text x="305" y="44" fill="#ddd6fe" font-size="12" font-family="Inter" font-weight="600" text-anchor="middle">Knowledge Base</text>
+                        <text x="305" y="62" fill="#a78bfa" font-size="10" font-family="Fira Code" text-anchor="middle">Chunks + Vector DB</text>
+
+                        <!-- User Box -->
+                        <rect x="20" y="145" width="150" height="55" rx="8" fill="#0f172a" stroke="#38bdf8" stroke-width="1.5"/>
+                        <text x="95" y="169" fill="#e0f2fe" font-size="12" font-family="Inter" font-weight="600" text-anchor="middle">Estudiante / Usuario</text>
+                        <text x="95" y="187" fill="#38bdf8" font-size="10" font-family="Fira Code" text-anchor="middle">Prompt + #Colección</text>
+
+                        <!-- Open WebUI Box -->
+                        <rect x="225" y="145" width="160" height="55" rx="8" fill="#0f172a" stroke="#38bdf8" stroke-width="1.5"/>
+                        <text x="305" y="169" fill="#f8fafc" font-size="12" font-family="Inter" font-weight="600" text-anchor="middle">Open WebUI (:3000)</text>
+                        <text x="305" y="187" fill="#94a3b8" font-size="10" font-family="Fira Code" text-anchor="middle">Orquestador RAG</text>
+
+                        <!-- Ollama Box -->
+                        <rect x="435" y="82" width="145" height="65" rx="8" fill="#064e3b" stroke="#10b981" stroke-width="1.5"/>
+                        <text x="507" y="108" fill="#ecfdf5" font-size="12" font-family="Inter" font-weight="600" text-anchor="middle">Ollama (:11434)</text>
+                        <text x="507" y="126" fill="#6ee7b7" font-size="9.5" font-family="Fira Code" text-anchor="middle">SLM + nomic-embed</text>
+
+                        <!-- Arrows -->
+                        <line x1="170" y1="47" x2="218" y2="47" stroke="#38bdf8" stroke-width="1.5" marker-end="url(#arrow)"/>
+                        <line x1="305" y1="75" x2="305" y2="138" stroke="#38bdf8" stroke-width="1.5" stroke-dasharray="4" marker-end="url(#arrow)"/>
+                        <line x1="170" y1="172" x2="218" y2="172" stroke="#38bdf8" stroke-width="1.5" marker-end="url(#arrow)"/>
+                        <path d="M 385 165 L 430 130" stroke="#34d399" stroke-width="1.5" fill="none" marker-end="url(#arrow-green)"/>
+                        <path d="M 385 52 L 430 95" stroke="#34d399" stroke-width="1.5" fill="none" marker-end="url(#arrow-green)"/>
+                    </svg>
+                </div>
+            </div>
+        </section>
+
+        <!-- FASE 1: Docker Compose -->
+        <section class="space-y-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <span class="flex items-center justify-center w-8 h-8 rounded-lg bg-brand-500/20 text-brand-400 font-mono font-bold border border-brand-500/30">1</span>
+                    <div>
+                        <h2 class="text-xl font-display font-bold text-white">Fase 1: Despliegue del Stack con Docker Compose</h2>
+                        <p class="text-xs text-slate-400">Tiempo estimado: 30 minutos • Infraestructura aislada en red local</p>
+                    </div>
+                </div>
+                <label class="flex items-center gap-2 cursor-pointer bg-slate-800/80 hover:bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700 text-xs">
+                    <input type="checkbox" class="step-checkbox accent-emerald-500 w-4 h-4" data-step="fase1">
+                    <span>Marcar Fase 1 completada</span>
+                </label>
+            </div>
+
+            <div class="glass-card rounded-2xl p-6 space-y-6">
+                <div>
+                    <h3 class="text-sm font-semibold text-white mb-2">Paso 1.1: Crear directorio y archivo <code class="text-brand-400 font-mono">docker-compose.yml</code></h3>
+                    <p class="text-sm text-slate-300 mb-3">
+                        Crea una carpeta dedicada para este laboratorio y guarda la siguiente configuración que levanta <strong>Ollama</strong> y <strong>Open WebUI</strong> conectados internamente:
+                    </p>
+                    <div class="relative code-block rounded-xl overflow-hidden">
+                        <div class="flex items-center justify-between px-4 py-2 bg-slate-900 border-b border-slate-800 text-xs font-mono text-slate-400">
+                            <span>docker-compose.yml</span>
+                            <button onclick="copyCode('code-compose', this)" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 transition flex items-center gap-1.5">
+                                <span>Copiar YAML</span>
+                            </button>
+                        </div>
+                        <pre id="code-compose" class="p-4 text-xs sm:text-sm font-mono text-slate-200 overflow-x-auto leading-relaxed">services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama-rag-lab
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    environment:
+      - OLLAMA_MAX_LOADED_MODELS=2
+    restart: unless-stopped
+
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: open-webui-lab
+    ports:
+      - "3000:8080"
+    environment:
+      - OLLAMA_BASE_URL=http://ollama-rag-lab:11434
+      - WEBUI_AUTH=true
+    volumes:
+      - open-webui_data:/app/backend/data
+    depends_on:
+      - ollama
+    restart: unless-stopped
+
+volumes:
+  ollama_data:
+  open-webui_data:</pre>
+                    </div>
+                </div>
+
+                <div class="grid md:grid-cols-2 gap-6">
+                    <div>
+                        <h3 class="text-sm font-semibold text-white mb-2">Paso 1.2: Levantar los contenedores</h3>
+                        <p class="text-xs text-slate-400 mb-2">Ejecuta en tu terminal dentro de la carpeta del proyecto:</p>
+                        <div class="relative code-block rounded-xl overflow-hidden">
+                            <div class="flex items-center justify-between px-4 py-2 bg-slate-900 border-b border-slate-800 text-xs font-mono text-slate-400">
+                                <span>bash</span>
+                                <button onclick="copyCode('code-up', this)" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 transition">Copiar</button>
+                            </div>
+                            <pre id="code-up" class="p-4 text-xs font-mono text-emerald-400 overflow-x-auto">mkdir -p lab2-rag-openwebui && cd lab2-rag-openwebui
+# Guarda el archivo docker-compose.yml aquí
+docker compose up -d
+docker ps</pre>
+                        </div>
+                    </div>
+
+                    <div>
+                        <h3 class="text-sm font-semibold text-white mb-2">Paso 1.3: Descargar SLM y Modelo de Embeddings</h3>
+                        <p class="text-xs text-slate-400 mb-2">Descarga el modelo generativo y el modelo vectorizador (<code class="text-accent-400">nomic-embed-text</code>):</p>
+                        <div class="relative code-block rounded-xl overflow-hidden">
+                            <div class="flex items-center justify-between px-4 py-2 bg-slate-900 border-b border-slate-800 text-xs font-mono text-slate-400">
+                                <span>bash</span>
+                                <button onclick="copyCode('code-pull', this)" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 transition">Copiar</button>
+                            </div>
+                            <pre id="code-pull" class="p-4 text-xs font-mono text-brand-400 overflow-x-auto">docker exec -it ollama-rag-lab ollama pull qwen2.5:1.5b-instruct
+docker exec -it ollama-rag-lab ollama pull nomic-embed-text
+docker exec -it ollama-rag-lab ollama list</pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- FASE 2: Configuración Open WebUI -->
+        <section class="space-y-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <span class="flex items-center justify-center w-8 h-8 rounded-lg bg-brand-500/20 text-brand-400 font-mono font-bold border border-brand-500/30">2</span>
+                    <div>
+                        <h2 class="text-xl font-display font-bold text-white">Fase 2: Acceso Inicial y Verificación de Motor</h2>
+                        <p class="text-xs text-slate-400">Tiempo estimado: 15 minutos • Configuración de cuenta administradora y embeddings</p>
+                    </div>
+                </div>
+                <label class="flex items-center gap-2 cursor-pointer bg-slate-800/80 hover:bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700 text-xs">
+                    <input type="checkbox" class="step-checkbox accent-emerald-500 w-4 h-4" data-step="fase2">
+                    <span>Marcar Fase 2 completada</span>
+                </label>
+            </div>
+
+            <div class="glass-card rounded-2xl p-6">
+                <ol class="space-y-4 text-sm text-slate-300">
+                    <li class="flex items-start gap-3">
+                        <span class="px-2 py-0.5 rounded bg-slate-800 font-mono text-xs text-brand-400 mt-0.5">2.1</span>
+                        <div>
+                            Abre tu navegador e ingresa a <a href="http://localhost:3000" target="_blank" class="text-brand-400 underline font-mono hover:text-brand-300">http://localhost:3000</a>. Crea tu cuenta local (el primer usuario creado obtiene automáticamente permisos de <strong>Administrador</strong>).
+                        </div>
+                    </li>
+                    <li class="flex items-start gap-3">
+                        <span class="px-2 py-0.5 rounded bg-slate-800 font-mono text-xs text-brand-400 mt-0.5">2.2</span>
+                        <div>
+                            Haz clic en tu avatar (esquina inferior izquierda) &rarr; <strong>Admin Panel</strong> &rarr; <strong>Settings</strong> &rarr; <strong>Documents</strong>.
+                        </div>
+                    </li>
+                    <li class="flex items-start gap-3">
+                        <span class="px-2 py-0.5 rounded bg-slate-800 font-mono text-xs text-brand-400 mt-0.5">2.3</span>
+                        <div>
+                            En la sección <em>Embedding Model Engine</em>, selecciona <strong>Ollama</strong> y asegúrate de escribir <code class="px-1.5 py-0.5 bg-slate-800 rounded text-emerald-400 font-mono text-xs">nomic-embed-text</code> como modelo de embeddings. Guarda los cambios.
+                        </div>
+                    </li>
+                </ol>
+            </div>
+        </section>
+
+        <!-- FASE 3: Caso de Estudio y Línea Base -->
+        <section class="space-y-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <span class="flex items-center justify-center w-8 h-8 rounded-lg bg-amber-500/20 text-amber-400 font-mono font-bold border border-amber-500/30">3</span>
+                    <div>
+                        <h2 class="text-xl font-display font-bold text-white">Fase 3: Caso de Estudio y Prueba "Antes del RAG"</h2>
+                        <p class="text-xs text-slate-400">Tiempo estimado: 30 minutos • Evidenciar la falta de conocimiento privado y alucinación base</p>
+                    </div>
+                </div>
+                <label class="flex items-center gap-2 cursor-pointer bg-slate-800/80 hover:bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700 text-xs">
+                    <input type="checkbox" class="step-checkbox accent-emerald-500 w-4 h-4" data-step="fase3">
+                    <span>Marcar Fase 3 completada</span>
+                </label>
+            </div>
+
+            <div class="glass-card rounded-2xl p-6 space-y-6">
+                <div class="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 text-sm text-amber-200">
+                    <strong>Escenario del Caso de Estudio:</strong> Trabajas en el equipo de IA de <em>Innovatech Colombia S.A.S.</em> Te piden construir un asistente interno que responda dudas sobre la nueva normativa corporativa 2027 (datos privados que nunca estuvieron en internet ni en el entrenamiento del LLM).
+                </div>
+
+                <div>
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
+                        <h3 class="text-sm font-semibold text-white">Paso 3.1: Descargar o crear el documento de prueba (<code class="text-brand-400 font-mono">politica_innovatech_2027.txt</code>)</h3>
+                        <button onclick="downloadCaseStudyDoc()" class="px-3 py-1.5 rounded-lg bg-brand-600 hover:bg-brand-500 text-white text-xs font-medium transition shadow">
+                            Descargar politica_innovatech_2027.txt
+                        </button>
+                    </div>
+                    <div class="relative code-block rounded-xl overflow-hidden">
+                        <div class="flex items-center justify-between px-4 py-2 bg-slate-900 border-b border-slate-800 text-xs font-mono text-slate-400">
+                            <span>politica_innovatech_2027.txt</span>
+                            <button onclick="copyCode('code-doc', this)" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 transition">Copiar Texto</button>
+                        </div>
+                        <pre id="code-doc" class="p-4 text-xs font-mono text-slate-300 overflow-x-auto whitespace-pre-wrap leading-relaxed">POLÍTICA INTERNA DE BENEFICIOS Y SEGURIDAD - INNOVATECH COLOMBIA 2027
+Documento Confidencial - Versión 4.2
+
+1. AUXILIO DE CONECTIVIDAD Y TELETRABAJO:
+A partir de enero de 2027, todos los colaboradores bajo la modalidad híbrida recibirán un auxilio mensual de conectividad neto de $245.000 COP, independiente de su salario básico. El código interno para solicitar este reembolso en el portal financiero es #INV-CON-2027.
+
+2. POLÍTICA DE VACACIONES ANTICIPADAS:
+Los empleados con más de 6 meses y menos de 1 año de vinculación continua podrán solicitar hasta un máximo de 7 días hábiles de vacaciones anticipadas, previa aprobación del líder de proyecto y del departamento de Recursos Humanos (gestionado por la directora Laura Martínez).
+
+3. PROTOCOLO DE INCIDENTES DE CIBERSEGURIDAD:
+Cualquier fuga de datos o acceso no autorizado detectado en los servidores locales o en la nube (AWS/Vercel) debe ser reportado en un plazo inferior a 2 horas al canal de emergencia interno de Slack: #sec-incidentes-urgente o llamando a la extensión interna 809. El cifrado obligatorio para bases de datos sensibles es AES-256 con rotación trimestral obligatoria de llaves criptográficas.</pre>
+                    </div>
+                </div>
+
+                <div>
+                    <h3 class="text-sm font-semibold text-white mb-2">Paso 3.2: Ejecutar consulta SIN RAG (Línea Base)</h3>
+                    <p class="text-sm text-slate-300 mb-3">
+                        Abre un nuevo chat en Open WebUI seleccionando <code class="text-brand-400 font-mono">qwen2.5:1.5b-instruct</code> (<strong>sin</strong> adjuntar ningún archivo todavía) y envía este prompt de prueba:
+                    </p>
+                    <div class="relative code-block rounded-xl overflow-hidden">
+                        <div class="flex items-center justify-between px-4 py-2 bg-slate-900 border-b border-slate-800 text-xs font-mono text-slate-400">
+                            <span>Prompt de Prueba 1 (Conocimiento Privado)</span>
+                            <button onclick="copyCode('prompt-1', this)" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 transition">Copiar Prompt</button>
+                        </div>
+                        <pre id="prompt-1" class="p-4 text-xs sm:text-sm font-mono text-amber-300 whitespace-pre-wrap">¿De cuánto es el auxilio de conectividad para teletrabajo en 2027 en Innovatech Colombia y cuál es el código interno para solicitarlo?</pre>
+                    </div>
+                    <p class="text-xs text-slate-400 mt-2">
+                        <strong>Observación esperada:</strong> El modelo alucinará cifras genéricas o indicará que no posee datos de esa empresa. <em>Toma una captura de pantalla para tu informe.</em>
+                    </p>
+                </div>
+            </div>
+        </section>
+
+        <!-- FASE 4 & 5: Ingesta y Validación -->
+        <section class="space-y-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <span class="flex items-center justify-center w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-400 font-mono font-bold border border-emerald-500/30">4</span>
+                    <div>
+                        <h2 class="text-xl font-display font-bold text-white">Fase 4: Indexación Vectorial y Validación "Después del RAG"</h2>
+                        <p class="text-xs text-slate-400">Tiempo estimado: 1 hora • Chunking, recuperación semántica y citación de fuentes</p>
+                    </div>
+                </div>
+                <label class="flex items-center gap-2 cursor-pointer bg-slate-800/80 hover:bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700 text-xs">
+                    <input type="checkbox" class="step-checkbox accent-emerald-500 w-4 h-4" data-step="fase4">
+                    <span>Marcar Fase 4 completada</span>
+                </label>
+            </div>
+
+            <div class="glass-card rounded-2xl p-6 space-y-6">
+                <div class="grid md:grid-cols-2 gap-6">
+                    <div class="bg-slate-900/70 border border-slate-800 rounded-xl p-5 space-y-3">
+                        <div class="text-xs font-mono uppercase text-accent-400">Paso 4.1 • Ingesta en Knowledge Base</div>
+                        <h3 class="text-base font-semibold text-white">Crear Colección Vectorial</h3>
+                        <ul class="space-y-2 text-sm text-slate-300 list-disc list-inside">
+                            <li>En el menú izquierdo, haz clic en <strong>Workspace</strong> &rarr; <strong>Knowledge</strong>.</li>
+                            <li>Pulsa <strong>+ Create a Knowledge Base</strong>.</li>
+                            <li>Nombre: <code class="text-emerald-400 font-mono">Politicas-Innovatech-2027</code>.</li>
+                            <li>Sube el archivo <code class="text-brand-400 font-mono">politica_innovatech_2027.txt</code> y espera la confirmación de indexación.</li>
+                        </ul>
+                    </div>
+
+                    <div class="bg-slate-900/70 border border-slate-800 rounded-xl p-5 space-y-3">
+                        <div class="text-xs font-mono uppercase text-emerald-400">Paso 4.2 • Consulta Aumentada</div>
+                        <h3 class="text-base font-semibold text-white">Conectar Colección en el Chat</h3>
+                        <ul class="space-y-2 text-sm text-slate-300 list-disc list-inside">
+                            <li>Abre un <strong>New Chat</strong> con <code class="text-brand-400 font-mono">qwen2.5:1.5b-instruct</code>.</li>
+                            <li>En la caja de texto escribe <code class="px-1.5 py-0.5 bg-slate-800 rounded text-amber-300 font-mono">#</code> y selecciona <code class="text-emerald-400 font-mono">#Politicas-Innovatech-2027</code>.</li>
+                            <li>Envía exactamente el mismo <strong>Prompt de Prueba 1</strong> y verifica los fragmentos citados debajo de la respuesta.</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Batería de Pruebas Comparativas -->
+                <div>
+                    <h3 class="text-sm font-semibold text-white mb-3">Paso 4.3: Batería de Pruebas de Verificación y Control de Alucinación</h3>
+                    <div class="overflow-x-auto border border-slate-800 rounded-xl">
+                        <table class="w-full text-left text-xs sm:text-sm">
+                            <thead class="bg-slate-900 text-slate-300 font-mono text-xs uppercase border-b border-slate-800">
+                                <tr>
+                                    <th class="px-4 py-3">Tipo de Prueba</th>
+                                    <th class="px-4 py-3">Prompt a Ejecutar (con #Politicas-Innovatech-2027)</th>
+                                    <th class="px-4 py-3">Comportamiento Esperado</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-800/80 text-slate-300">
+                                <tr>
+                                    <td class="px-4 py-3 font-medium text-brand-400">Dato Exacto</td>
+                                    <td class="px-4 py-3 font-mono text-xs">"¿Cuánto es el auxilio de conectividad 2027 y cuál es su código?"</td>
+                                    <td class="px-4 py-3">$245.000 COP y código <code class="text-emerald-400">#INV-CON-2027</code> con cita al documento.</td>
+                                </tr>
+                                <tr>
+                                    <td class="px-4 py-3 font-medium text-accent-400">Condicional / Rol</td>
+                                    <td class="px-4 py-3 font-mono text-xs">"Llevo 8 meses en la empresa, ¿cuántos días de vacaciones anticipadas puedo pedir y quién gestiona RRHH?"</td>
+                                    <td class="px-4 py-3">Máximo 7 días hábiles; gestionado por la directora Laura Martínez.</td>
+                                </tr>
+                                <tr>
+                                    <td class="px-4 py-3 font-medium text-emerald-400">Protocolo Técnico</td>
+                                    <td class="px-4 py-3 font-mono text-xs">"Detecté una fuga en AWS, ¿en cuánto tiempo debo reportarla, a qué canal y qué cifrado exige la norma?"</td>
+                                    <td class="px-4 py-3">Menos de 2 horas, Slack <code class="text-emerald-400">#sec-incidentes-urgente</code> (ext. 809), cifrado AES-256.</td>
+                                </tr>
+                                <tr>
+                                    <td class="px-4 py-3 font-medium text-rose-400">Anti-Alucinación (Fuera de dominio)</td>
+                                    <td class="px-4 py-3 font-mono text-xs">"¿Cuál es el horario de atención de la cafetería los sábados en Innovatech?"</td>
+                                    <td class="px-4 py-3">Debe indicar que el documento no contiene información sobre cafetería.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- FASE 5: Generador Interactivo de Entregable -->
+        <section class="space-y-4">
+            <div class="flex items-center gap-3">
+                <span class="flex items-center justify-center w-8 h-8 rounded-lg bg-accent-500/20 text-accent-400 font-mono font-bold border border-accent-500/30">5</span>
+                <div>
+                    <h2 class="text-xl font-display font-bold text-white">Generador de Informe Técnico (Entregable)</h2>
+                    <p class="text-xs text-slate-400">Documenta tus observaciones comparativas y descarga tu reporte listo en formato Markdown (.md)</p>
+                </div>
+            </div>
+
+            <div class="glass-card rounded-2xl p-6 space-y-5">
+                <div class="grid sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-medium text-slate-400 mb-1">Nombre del Estudiante / Equipo</label>
+                        <input type="text" id="rep-name" placeholder="Ej. Ana María Gómez" class="w-full px-3.5 py-2 rounded-lg bg-slate-900 border border-slate-700 text-sm text-white focus:outline-none focus:border-brand-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-400 mb-1">Modelo Evaluado en Ollama</label>
+                        <input type="text" id="rep-model" value="qwen2.5:1.5b-instruct + nomic-embed-text" class="w-full px-3.5 py-2 rounded-lg bg-slate-900 border border-slate-700 text-sm text-white font-mono focus:outline-none focus:border-brand-500">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-medium text-slate-400 mb-1">1. Comportamiento "Antes del RAG" (¿Qué respondió o alucinó el modelo sin contexto?)</label>
+                    <textarea id="rep-before" rows="2" placeholder="Describe la respuesta errónea obtenida en la Fase 3..." class="w-full px-3.5 py-2 rounded-lg bg-slate-900 border border-slate-700 text-sm text-white focus:outline-none focus:border-brand-500"></textarea>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-medium text-slate-400 mb-1">2. Comportamiento "Después del RAG" (¿Cómo cambió la precisión y qué fragmentos citó Open WebUI?)</label>
+                    <textarea id="rep-after" rows="2" placeholder="Describe la respuesta fundamentada obtenida en la Fase 4..." class="w-full px-3.5 py-2 rounded-lg bg-slate-900 border border-slate-700 text-sm text-white focus:outline-none focus:border-brand-500"></textarea>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-medium text-slate-400 mb-1">3. Análisis de Prueba Anti-Alucinación (¿Cómo reaccionó ante la pregunta sobre la cafetería?)</label>
+                    <textarea id="rep-hallucination" rows="2" placeholder="Explica si el modelo respetó los límites del contexto recuperado..." class="w-full px-3.5 py-2 rounded-lg bg-slate-900 border border-slate-700 text-sm text-white focus:outline-none focus:border-brand-500"></textarea>
+                </div>
+
+                <div class="flex flex-wrap items-center justify-between gap-4 pt-2 border-t border-slate-800">
+                    <span class="text-xs text-slate-400">Recuerda adjuntar tus 3 capturas de pantalla junto con este informe.</span>
+                    <button onclick="downloadReport()" class="px-5 py-2.5 rounded-xl bg-gradient-to-r from-brand-600 to-accent-500 hover:from-brand-500 hover:to-accent-400 text-white text-sm font-semibold shadow-lg transition">
+                        Descargar Informe (.md)
+                    </button>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="border-t border-slate-800/80 py-6 text-center text-xs text-slate-500">
+        Guía Práctica de Ingeniería • Curso de LLMOps, Serving Local y Arquitecturas RAG
+    </footer>
+
+    <script>
+        // Copy to clipboard helper
+        function copyCode(elementId, btn) {
+            const text = document.getElementById(elementId).innerText;
+            navigator.clipboard.writeText(text).then(() => {
+                const originalText = btn.innerText;
+                btn.innerText = "¡Copiado!";
+                btn.classList.add("bg-emerald-600", "text-white");
+                setTimeout(() => {
+                    btn.innerText = originalText;
+                    btn.classList.remove("bg-emerald-600", "text-white");
+                }, 1800);
+            });
+        }
+
+        // Download case study TXT file directly
+        function downloadCaseStudyDoc() {
+            const content = document.getElementById('code-doc').innerText;
+            const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'politica_innovatech_2027.txt';
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        // Progress tracking with localStorage
+        const checkboxes = document.querySelectorAll('.step-checkbox');
+        function updateProgress() {
+            let checkedCount = 0;
+            const state = {};
+            checkboxes.forEach(cb => {
+                state[cb.dataset.step] = cb.checked;
+                if (cb.checked) checkedCount++;
+            });
+            localStorage.setItem('lab2_rag_progress', JSON.stringify(state));
+            const pct = Math.round((checkedCount / checkboxes.length) * 100);
+            document.getElementById('progress-bar').style.width = pct + '%';
+            document.getElementById('progress-text').innerText = pct + '% Completado';
+        }
+
+        function loadProgress() {
+            const saved = JSON.parse(localStorage.getItem('lab2_rag_progress') || '{}');
+            checkboxes.forEach(cb => {
+                if (saved[cb.dataset.step]) cb.checked = true;
+                cb.addEventListener('change', updateProgress);
+            });
+            updateProgress();
+        }
+
+        function resetProgress() {
+            localStorage.removeItem('lab2_rag_progress');
+            checkboxes.forEach(cb => cb.checked = false);
+            updateProgress();
+        }
+
+        // Download Markdown Deliverable
+        function downloadReport() {
+            const name = document.getElementById('rep-name').value || 'Estudiante';
+            const model = document.getElementById('rep-model').value || 'qwen2.5:1.5b-instruct';
+            const before = document.getElementById('rep-before').value || '_Sin completar_';
+            const after = document.getElementById('rep-after').value || '_Sin completar_';
+            const hallucination = document.getElementById('rep-hallucination').value || '_Sin completar_';
+
+            const md = `# Informe de Laboratorio 2: Pipeline RAG con Open WebUI y Ollama
+
+- **Estudiante / Equipo:** ${name}
+- **Stack Utilizado:** ${model} + Open WebUI + Docker Compose
+- **Fecha:** ${new Date().toLocaleDateString('es-CO')}
+
+---
+
+## 1. Comparativa: Antes del RAG (Línea Base)
+${before}
+
+## 2. Comparativa: Después del RAG (Con Knowledge Base)
+${after}
+
+## 3. Evaluación de Control de Alucinaciones (Fuera de Dominio)
+${hallucination}
+
+---
+
+## 4. Evidencias Adjuntas (Capturas de Pantalla)
+- [ ] Captura 1: Respuesta del modelo sin RAG (alucinación / desconocimiento).
+- [ ] Captura 2: Documento \`politica_innovatech_2027.txt\` indexado en *Workspace -> Knowledge*.
+- [ ] Captura 3: Respuesta fundamentada usando \`#Politicas-Innovatech-2027\` con citas desplegadas.
+`;
+            const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `Entregable_Lab2_RAG_${name.replace(/\s+/g, '_')}.md`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        loadProgress();
+    </script>
+</body>
+</html>
